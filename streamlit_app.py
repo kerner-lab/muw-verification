@@ -1,11 +1,13 @@
 import streamlit as st
 
-from ipyleaflet import Map, TileLayer, Marker, basemaps, LayersControl, GeoData
+from ipyleaflet import Map, TileLayer, Marker, LayersControl, GeoData
 
+import os
 import geopandas as gpd
-import matplotlib.pyplot as plt
 from geopy.geocoders import GoogleV3
 from shapely.geometry import Point
+
+api_key = os.environ.get("api_key", None)
 
 class Verifier:
   def __init__(self, api_key, address):
@@ -86,10 +88,12 @@ class Verifier:
     m.add_control(LayersControl())
     return m
 
-googlemaps_key = st.text_input("input your google maps key")
+if api_key is None:
+    api_key = st.text_input("input your google maps key")
 address = st.text_input("input your address")
-v = Verifier(googlemaps_key, address)
+v = Verifier(api_key, address)
 v.check_in_burn_scar()
 v.check_in_building_damage()
-map = v.display_map()
-map
+
+# TODO
+# map = v.display_map()

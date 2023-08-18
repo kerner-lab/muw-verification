@@ -2,3 +2,4 @@ streamlit
 shapely
 geopandas
 ipyleaflet
+geopy

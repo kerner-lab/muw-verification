@@ -73,7 +73,7 @@ class Verifier:
       tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/10300100EB592000_tiles/{z}/{x}/{y}.png",
       name='Maxar post-fire August 9',
       attr="Maxar"
-    )
+    ).add_to(map)
 
     geo_j = self.burn_scar.to_json()
     geo_j = folium.GeoJson(data=geo_j,

@@ -55,7 +55,7 @@ class Verifier:
     addr_centroid = (self.addr_point.y.values[0], self.addr_point.x.values[0])
     y, x = addr_centroid
 
-    map = folium.Map(location=[y, x], zoom_start=14)
+    map = folium.Map(location=[y, x], zoom_start=18)
 
     folium.TileLayer(
         tiles="http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}",
@@ -64,10 +64,16 @@ class Verifier:
     ).add_to(map)
 
     folium.TileLayer(
-        tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/10300100EB592000_tiles/{z}/{x}/{y}.png",
+        tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/skysat_maui_8_10_2023_rgb_tiles/{z}/{x}/{y}.png",
         name='SkySat post-fire August 9',
         attr="SkySat"
     ).add_to(map)
+
+    folium.TileLayer(
+      tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/10300100EB592000_tiles/{z}/{x}/{y}.png",
+      name='Maxar post-fire August 9',
+      attr="Maxar"
+    )
 
     geo_j = self.burn_scar.to_json()
     geo_j = folium.GeoJson(data=geo_j,
@@ -80,6 +86,12 @@ class Verifier:
                                   style_function=lambda x: {'color': 'black', 'fillColor': 'red', 'opacity':0.5, 'fillOpacity':0.6},
                                   name="Damaged buildings")
     builds_geo_j.add_to(map)
+
+    intact_geo_j =  self.bld_dmg[self.bld_dmg['damaged']==0].to_json()
+    intact_geo_j = folium.GeoJson(data=intact_geo_j,
+                                  style_function=lambda x: {'color': 'black', 'fillColor': 'green', 'opacity':0.5, 'fillOpacity':0.6},
+                                  name="Intact buildings")
+    intact_geo_j.add_to(map)
 
     folium.Marker(location=addr_centroid, name='Verification address').add_to(map)
 

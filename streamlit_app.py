@@ -32,6 +32,8 @@ class Verifier:
     ku_bld_dmg = gpd.read_file(root / "kula-building-damage.geojson")
     ku_bld_dmg.crs = 32604
     ku_bld_dmg['damaged'] = 1
+    ku_bld_dmg = ku_bld_dmg[['fid','OBJECTID','damaged','geometry']]
+    ku_bld_dmg.columns = ['fid','id','damaged','geometry']
     bld_dmg = pd.concat([ku_bld_dmg, lh_bld_dmg])
     self.bld_dmg = bld_dmg.to_crs(epsg=4326)
 

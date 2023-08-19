@@ -3,3 +3,4 @@ shapely
 geopandas
 ipyleaflet
 geopy
+leafmap

@@ -1,13 +1,12 @@
 import streamlit as st
 
-from ipyleaflet import Map, TileLayer, Marker, LayersControl, GeoData
+import leafmap
+from ipyleaflet import TileLayer, Marker, LayersControl, GeoData
 
 import os
 import geopandas as gpd
 from geopy.geocoders import GoogleV3
 from shapely.geometry import Point
-
-api_key = os.environ.get("api_key", None)
 
 class Verifier:
   def __init__(self, api_key, address):
@@ -55,7 +54,7 @@ class Verifier:
     # Display the map
     addr_centroid = (self.addr_point.y.values[0], self.addr_point.x.values[0])
 
-    m = Map(
+    m = leafmap.Map(
         zoom=18, # only defined between 12 and 18
         scroll_wheel_zoom=True,
         center=addr_centroid)
@@ -88,12 +87,21 @@ class Verifier:
     m.add_control(LayersControl())
     return m
 
-if api_key is None:
-    api_key = st.text_input("input your google maps key")
-address = st.text_input("input your address")
-v = Verifier(api_key, address)
-v.check_in_burn_scar()
-v.check_in_building_damage()
+api_key = os.environ.get("api_key", None)
 
-# TODO
-# map = v.display_map()
+with st.form("inputs"):
+  st.write("Input the following:")
+  if api_key is None:
+    api_key = st.text_input("Input your google maps key")
+  address = st.text_input("Input your address")
+
+   # Every form must have a submit button.
+  submitted = st.form_submit_button("Submit")
+  if submitted:
+      st.write("Address:", address)
+      v = Verifier(api_key, address)
+      v.check_in_burn_scar()
+      v.check_in_building_damage()
+
+      map = v.display_map()
+      map.to_streamlit()

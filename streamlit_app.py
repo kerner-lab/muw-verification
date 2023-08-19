@@ -90,8 +90,8 @@ class Verifier:
     ).add_to(map)
 
     folium.TileLayer(
-      tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/10503F0006FE4B00_tiles/{z}/{x}/{y}.png",
-      name='Maxar Kula post-fire August 9',
+      tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/105001003590C300_tiles/{z}/{x}/{y}.png",
+      name='Maxar Kula post-fire August 12',
       attr="Maxar Kula"
     ).add_to(map)
 

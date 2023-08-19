@@ -1,12 +1,16 @@
 import streamlit as st
 
-import leafmap
-from ipyleaflet import TileLayer, Marker, LayersControl, GeoData
+import folium
+from streamlit_folium import st_folium
 
 import os
 import geopandas as gpd
 from geopy.geocoders import GoogleV3
 from shapely.geometry import Point
+
+from pathlib import Path
+
+root = Path(__file__).parent
 
 class Verifier:
   def __init__(self, api_key, address):
@@ -20,13 +24,9 @@ class Verifier:
     else:
       st.write('Address not found - check that your formatting is correct.')
     # Load the burn scar polygons
-    burn_scar_url = "https://drive.google.com/file/d/1Ukn9UnGtTz69JrfTBYLQ1UpEi9vQ7VU6/view?usp=drive_link"
-    burn_scar_url = "https://drive.google.com/uc?id=" + burn_scar_url.split('/')[-2]
-    self.burn_scar = gpd.read_file(burn_scar_url)
+    self.burn_scar = gpd.read_file(root / "burn-area.geojson")
     # Load building damage polygons
-    bldg_dmg_url = "https://drive.google.com/file/d/1tCGqAsrWB0lHRvQFNyk25w7_sKO40lTm/view?usp=drive_link"
-    bldg_dmg_url = "https://drive.google.com/uc?id=" + bldg_dmg_url.split('/')[-2]
-    self.bld_dmg = gpd.read_file(bldg_dmg_url).to_crs('EPSG:4326')
+    self.bld_dmg = gpd.read_file(root / "lahaina-building-damage.geojson").to_crs('EPSG:4326')
 
   def check_in_burn_scar(self):
     # Check if address is contained within burn scar
@@ -53,39 +53,39 @@ class Verifier:
   def display_map(self):
     # Display the map
     addr_centroid = (self.addr_point.y.values[0], self.addr_point.x.values[0])
+    y, x = addr_centroid
 
-    m = leafmap.Map(
-        zoom=18, # only defined between 12 and 18
-        scroll_wheel_zoom=True,
-        center=addr_centroid)
+    map = folium.Map(location=[y, x], zoom_start=14)
 
-    google_layer = TileLayer(url="http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}", name="Google Satellite Layer (before)")
-    m.add_layer(google_layer)
+    folium.TileLayer(
+        tiles="http://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}",
+        name='Google Satellite Layer (before)',
+        attr="Google Maps"
+    ).add_to(map)
 
-    maxar_lahaina_tiles = ("https://geospatialvisualizer.z13.web.core.windows.net/tiles/10300100EB592000_tiles/{z}/{x}/{y}.png")
-    maxar_layer=TileLayer(url=maxar_lahaina_tiles, name='Maxar post-fire August 9')
-    m.add_layer(maxar_layer)
+    folium.TileLayer(
+        tiles="https://geospatialvisualizer.z13.web.core.windows.net/tiles/10300100EB592000_tiles/{z}/{x}/{y}.png",
+        name='SkySat post-fire August 9',
+        attr="SkySat"
+    ).add_to(map)
 
-    skysat_lahaina_tiles = ("https://geospatialvisualizer.z13.web.core.windows.net/tiles/skysat_maui_8_10_2023_rgb_tiles/{z}/{x}/{y}.png")
-    skysat_layer=TileLayer(url=skysat_lahaina_tiles, name='SkySat post-fire August 9')
-    m.add_layer(skysat_layer)
+    geo_j = self.burn_scar.to_json()
+    geo_j = folium.GeoJson(data=geo_j,
+                           style_function=lambda x: {'color': 'black', 'fillColor': '#a76f45', 'opacity':0.5, 'fillOpacity':0.4},
+                           name="Burn scar")
+    geo_j.add_to(map)
 
-    burnscar = GeoData(geo_dataframe = self.burn_scar, style={'color': 'black', 'fillColor': '#a76f45', 'opacity':0.5, 'fillOpacity':0.4},
-                       name='Burn scar')
-    m.add_layer(burnscar)
+    builds_geo_j =  self.bld_dmg[self.bld_dmg['damaged']==1].to_json()
+    builds_geo_j = folium.GeoJson(data=builds_geo_j,
+                                  style_function=lambda x: {'color': 'black', 'fillColor': 'red', 'opacity':0.5, 'fillOpacity':0.6},
+                                  name="Damaged buildings")
+    builds_geo_j.add_to(map)
 
-    buildings = GeoData(geo_dataframe = self.bld_dmg[self.bld_dmg['damaged']==1], style={'color': 'black', 'fillColor': 'red', 'opacity':0.5, 'fillOpacity':0.6},
-                        name='Damaged buildings')
-    m.add_layer(buildings)
+    folium.Marker(location=addr_centroid, name='Verification address').add_to(map)
 
-    buildings = GeoData(geo_dataframe = self.bld_dmg[self.bld_dmg['damaged']==0], style={'color': 'black', 'fillColor': 'green', 'opacity':0.5, 'fillOpacity':0.6},
-                        name='Intact buildings')
-    m.add_layer(buildings)
+    folium.LayerControl().add_to(map)
 
-    mark = Marker(location=addr_centroid, name='Verification address')
-    m.add_layer(mark)
-    m.add_control(LayersControl())
-    return m
+    return map
 
 api_key = os.environ.get("api_key", None)
 
@@ -104,4 +104,4 @@ with st.form("inputs"):
       v.check_in_building_damage()
 
       map = v.display_map()
-      map.to_streamlit()
+      st_data = st_folium(map, width=500)

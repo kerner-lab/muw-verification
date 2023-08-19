@@ -3,4 +3,5 @@ shapely
 geopandas
 ipyleaflet
 geopy
-leafmap
+folium
+streamlit_folium

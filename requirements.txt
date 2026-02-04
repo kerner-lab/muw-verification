@@ -1,7 +1,6 @@
-streamlit
-shapely
-geopandas
-ipyleaflet
-geopy
-folium
-streamlit_folium
+streamlit>=1.28.0
+geopandas>=0.14.0
+geopy>=2.4.0
+folium>=0.15.0
+streamlit-folium>=0.15.0
+openpyxl>=3.1.0

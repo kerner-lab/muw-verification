@@ -3,6 +3,7 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 
+from io import BytesIO
 import os
 import geopandas as gpd
 import pandas as pd
@@ -14,6 +15,14 @@ from pathlib import Path
 root = Path(__file__).parent
 
 QUIET = False
+
+
+def dataframe_to_excel_bytes(df):
+  output = BytesIO()
+  with pd.ExcelWriter(output, engine='openpyxl') as writer:
+    df.to_excel(writer, index=False)
+  output.seek(0)
+  return output.getvalue()
 
 class Verifier:
   def __init__(self, api_key, address):
@@ -143,6 +152,7 @@ class Verifier:
     return map
 
 api_key = os.environ.get("api_key", None)
+bulk_results_df = None
 
 with st.form("inputs"):
   info_text = """This app is used to check if a user-specified address is inside
@@ -161,8 +171,8 @@ with st.form("inputs"):
   st.write("""Instead of entering a single address above, you can upload
               a .xlsx/.csv file containing an address in each row.""")
 
-  uploaded_file = st.file_uploader('Address file',type=['xlsx'],
-                                    help='Must be xslx file type')
+  uploaded_file = st.file_uploader('Address file',type=['xlsx', 'csv'],
+                                    help='Must be xlsx or csv file type')
   columns = st.text_input("Enter the column names to use for addresses. If multiple columns should be used, separate the column names with commas (e.g.: col1, col2)")
 
   # Every form must have a submit button.
@@ -180,7 +190,10 @@ with st.form("inputs"):
 
   elif submitted and uploaded_file:
     QUIET = True
-    df = pd.read_excel(uploaded_file)
+    if uploaded_file.name.lower().endswith('.csv'):
+      df = pd.read_csv(uploaded_file)
+    else:
+      df = pd.read_excel(uploaded_file)
     colnames = [colname.strip() for colname in columns.split(',')]
     st.write('Processing bulk addresses from file...')
     progress_bar = st.progress(0)
@@ -205,7 +218,15 @@ with st.form("inputs"):
           df.loc[idx, 'building_damage'] = False
       progress_bar.progress((idx+1)/df.shape[0])
 
-    st.write('Results shown in table below and saved in Excel file in Downloads folder')
-    st.write(df)
-    df.to_excel('~/Downloads/bulk-verification-results.xlsx')
+    bulk_results_df = df
+
+if bulk_results_df is not None:
+  st.write('Results shown in the table below. Use the download button to save the Excel file locally.')
+  st.write(bulk_results_df)
+  st.download_button(
+    'Download results as Excel',
+    data=dataframe_to_excel_bytes(bulk_results_df),
+    file_name='bulk-verification-results.xlsx',
+    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  )
 

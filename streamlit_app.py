@@ -13,38 +13,56 @@ from pathlib import Path
 
 root = Path(__file__).parent
 
+QUIET = False
+
 class Verifier:
   def __init__(self, api_key, address):
     # Geocode the location
-    self.location = GoogleV3(user_agent="MUW-Verify", api_key=api_key).geocode(address)
-    # Format address as Point
-    addr_point = Point(self.location.longitude, self.location.latitude)
-    self.addr_point = gpd.GeoSeries(addr_point, crs='EPSG:4326')
-    if self.location:
-      st.write('Found location: %s' % self.location.address)
-    else:
-      st.write('Address not found - check that your formatting is correct.')
-    # Load the burn scar polygons
-    self.burn_scar = gpd.read_file(root / "burn-area.geojson")
-    # Load building damage polygons
-    lh_bld_dmg = gpd.read_file(root / "lahaina-building-damage.geojson")
-    lh_bld_dmg.crs = 32604
-    ku_bld_dmg = gpd.read_file(root / "kula-building-damage.geojson")
-    ku_bld_dmg.crs = 32604
-    ku_bld_dmg['damaged'] = 1
-    ku_bld_dmg = ku_bld_dmg[['fid','OBJECTID','damaged','geometry']]
-    ku_bld_dmg.columns = ['fid','id','damaged','geometry']
-    bld_dmg = pd.concat([ku_bld_dmg, lh_bld_dmg])
-    self.bld_dmg = bld_dmg.to_crs(epsg=4326)
+    try:
+      self.location = GoogleV3(user_agent="MUW-Verify", api_key=api_key).geocode(address)
+      # Format address as Point
+      addr_point = Point(self.location.longitude, self.location.latitude)
+      self.addr_point = gpd.GeoSeries(addr_point, crs='EPSG:4326')
+      if self.location:
+        if not QUIET:
+          st.write('Found location: %s' % self.location.address)
+      else:
+        if not QUIET:
+          st.write('Address not found - check that your formatting is correct.')
+      # Load the burn scar polygons
+      self.burn_scar = gpd.read_file(root / "burn-area.geojson")
+      # Load building damage polygons
+      lh_bld_dmg = gpd.read_file(root / "lahaina-building-damage.geojson")
+      lh_bld_dmg.crs = 32604
+      ku_bld_dmg = gpd.read_file(root / "kula-building-damage.geojson")
+      ku_bld_dmg.crs = 32604
+      ku_bld_dmg['damaged'] = 1
+      ku_bld_dmg = ku_bld_dmg[['fid','OBJECTID','damaged','geometry']]
+      ku_bld_dmg.columns = ['fid','id','damaged','geometry']
+      bld_dmg = pd.concat([ku_bld_dmg, lh_bld_dmg])
+      self.bld_dmg = bld_dmg.to_crs(epsg=4326)
+    except:
+      if not QUIET:
+        st.write('Address %s not found by geocoder' % address)
+      self.location = None
+      self.addr_point = None
+      self.burn_scar = None
+      self.bld_dmg = None
 
   def check_in_burn_scar(self):
     # Check if address is contained within burn scar
     if self.addr_point.geometry.within(self.burn_scar.iloc[1].geometry).any():
-      st.write("Address %s is inside South Maui/Upcountry burn scar area" % self.location.address)
+      if not QUIET:
+        st.write("Address %s is inside South Maui/Upcountry burn scar area" % self.location.address)
+      return True
     elif self.addr_point.geometry.within(self.burn_scar.iloc[0].geometry).any():
-      st.write("Address %s is inside Lahaina burn scar area" % self.location.address)
+      if not QUIET:
+        st.write("Address %s is inside Lahaina burn scar area" % self.location.address)
+      return True
     else:
-      st.write("Address %s is NOT inside either burn scar area" % self.location.address)
+      if not QUIET:
+        st.write("Address %s is NOT inside either burn scar area" % self.location.address)
+      return False
 
   def check_in_building_damage(self):
     bldg_warning = """NOTE: Building damage detection and damage levels based on imagery from August 9
@@ -56,13 +74,18 @@ class Verifier:
     for idx, row in self.bld_dmg.iterrows():
       if self.addr_point.geometry.within(row.geometry).any():
         bldg_match = True
-        st.write('Address %s matches building in building damage detection database' % self.location.address)
+        if not QUIET:
+          st.write('Address %s matches building in building damage detection database' % self.location.address)
         if row['damage_pct'] > 0:
-          st.write('Estimated damage level: {0:.2f}%'.format(float(row['damage_pct'])*100))
-        break
+          if not QUIET:
+            st.write('Estimated damage level: {0:.2f}%'.format(float(row['damage_pct'])*100))
+            st.write(bldg_warning)
+          return float(row['damage_pct'])*100
     if not bldg_match:
-      st.write('Address %s does not match any buildings in building damage detection database' % self.location.address)
-    st.write(bldg_warning)
+      if not QUIET:
+        st.write('Address %s does not match any buildings in building damage detection database' % self.location.address)
+        st.write(bldg_warning)
+      return False
 
   def display_map(self):
     # Display the map
@@ -130,18 +153,59 @@ with st.form("inputs"):
   st.write(info_text)
   st.write("""If you experience any issues with the app, please contact Hannah
               Kerner at hkerner@asu.edu.""")
-  st.write("Input the following:")
+
   if api_key is None:
     api_key = st.text_input("Input your google maps key")
   address = st.text_input("Input your address")
 
-   # Every form must have a submit button.
+  st.write("""Instead of entering a single address above, you can upload
+              a .xlsx/.csv file containing an address in each row.""")
+
+  uploaded_file = st.file_uploader('Address file',type=['xlsx'],
+                                    help='Must be xslx file type')
+  columns = st.text_input("Enter the column names to use for addresses. If multiple columns should be used, separate the column names with commas (e.g.: col1, col2)")
+
+  # Every form must have a submit button.
   submitted = st.form_submit_button("Submit")
-  if submitted:
-      st.write("Address:", address)
-      v = Verifier(api_key, address)
+
+  if submitted and address:
+    st.write("Address:", address)
+    v = Verifier(api_key, address)
+    if v:
       v.check_in_burn_scar()
       v.check_in_building_damage()
 
       map = v.display_map()
       st_data = st_folium(map, width=500)
+
+  elif submitted and uploaded_file:
+    QUIET = True
+    df = pd.read_excel(uploaded_file)
+    colnames = [colname.strip() for colname in columns.split(',')]
+    st.write('Processing bulk addresses from file...')
+    progress_bar = st.progress(0)
+    for idx, row in df.iterrows():
+      address = ','.join([str(row[c]) for c in colnames if not pd.isnull(row[c])])
+      # st.write("Address:", address)
+      v = Verifier(api_key, address)
+      if v.location == None:
+        df.loc[idx, 'geocoder_address'] = 'ERROR: incorrect formatting or address not found'
+      else:
+        df.loc[idx, 'geocoder_address'] = v.location.address
+        df.loc[idx, 'geocoder_long'] = v.location.longitude
+        df.loc[idx, 'geocoder_lat'] = v.location.latitude
+        if v.check_in_burn_scar():
+          df.loc[idx, 'in_burn_scar'] = True
+        else:
+          df.loc[idx, 'in_burn_scar'] = False
+        building_damage = v.check_in_building_damage()
+        if building_damage:
+          df.loc[idx, 'building_damage'] = building_damage
+        else:
+          df.loc[idx, 'building_damage'] = False
+      progress_bar.progress((idx+1)/df.shape[0])
+
+    st.write('Results shown in table below and saved in Excel file in Downloads folder')
+    st.write(df)
+    df.to_excel('~/Downloads/bulk-verification-results.xlsx')
+
